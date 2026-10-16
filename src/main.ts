@@ -19,7 +19,7 @@ import { Player } from "./player/Player";
 import { Weapon } from "./player/Weapon";
 import { WEAPON_LABELS } from "./player/WeaponModels";
 import { Secrets } from "./secrets/Secrets";
-import { Hud } from "./ui/Hud";
+import { Hud, ResultStats } from "./ui/Hud";
 
 const canvas =
   document.getElementById(
@@ -92,6 +92,36 @@ let finalBoss: FinalBossPlaceholder | null = null;
 
 let ending = false;
 
+// Время игры: считается, пока игра не на паузе и не закончена.
+let playTime = 0;
+let paused = true;
+
+const formatTime = (seconds: number) => {
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+};
+
+const gameStats = (): ResultStats => {
+  const { killed, total } = monsters.totalStats();
+
+  return {
+    time: formatTime(playTime),
+    monstersKilled: killed,
+    monstersTotal: total,
+    secretsFound: secrets.activatedCount,
+    secretsTotal: secrets.total,
+  };
+};
+
+// Счётчик монстров включается при первом открытии дверей лифта на этаже с монстрами.
+let monsterCounterShown = false;
+
 const restartGame = () => {
   const url =
     new URL(window.location.href);
@@ -120,6 +150,7 @@ const showGameOver = () => {
   hud.showResult(
     "GAME OVER",
     player.deathReason,
+    gameStats(),
     restartGame,
   );
 };
@@ -149,6 +180,7 @@ const finishVictory = (
     hud.showResult(
       "YOU WIN",
       message,
+      gameStats(),
       restartGame,
     );
   }, delay);
@@ -192,12 +224,8 @@ secrets.onActivated = (info) => {
     return;
   }
 
-  const base = `СЕКРЕТ АКТИВОВАНО! Залишилось секретів: ${info.remaining}`;
-
   hud.toast(
-    info.finalUnlocked
-      ? `${base}. Останній секрет з'явився на поверсі 0, на стіні навпроти ліфта`
-      : base,
+    `СЕКРЕТ АКТИВОВАНО! Залишилось секретів: ${info.remaining}`,
     4500,
   );
 };
@@ -212,15 +240,10 @@ weapon.onPickup = (type) => {
 player.onDamage = (hp) => {
   hud.bloodSplash(64);
 
-  if (
-    hp > 0 &&
-    hp < player.maxHealth * 0.3
-  ) {
-    hud.toast(
-      `ЗДОРОВ'Я: ${hp}%`,
-      700,
-    );
-  }
+  // Индикатор здоровья появляется при первом уроне и дальше обновляется.
+  hud.setHealth(
+    Math.round((hp / player.maxHealth) * 100),
+  );
 };
 
 const env: NpcEnv = {
@@ -243,7 +266,11 @@ hud.onStart(() =>
   player.requestLock(),
 );
 
+hud.onRestart(restartGame);
+
 player.onLockChange = (locked) => {
+  paused = !locked;
+
   if (!ending && player.alive) {
     hud.setPaused(!locked);
   }
@@ -283,6 +310,10 @@ scene.onBeforeRenderObservable.add(
 
     world.lava.update(dt);
 
+    if (!ending && !paused) {
+      playTime += dt;
+    }
+
     if (!ending) {
       const weaponHint =
         weapon.getPickupHint();
@@ -313,6 +344,33 @@ scene.onBeforeRenderObservable.add(
     }
 
     finalBoss?.update(dt);
+    secrets.update(dt);
+
+    if (!ending) {
+      const stats =
+        elevator.moving
+          ? null
+          : monsters.waveStats(
+              elevator.floor,
+            );
+
+      if (
+        !monsterCounterShown &&
+        stats &&
+        elevator.exitOpen()
+      ) {
+        monsterCounterShown = true;
+      }
+
+      if (monsterCounterShown && stats) {
+        hud.setMonsters(
+          stats.killed,
+          stats.total,
+        );
+      } else {
+        hud.hideMonsters();
+      }
+    }
 
     npcs.forEach(
       (npc) =>

@@ -98,6 +98,23 @@ export class MonsterManager {
     }
   }
 
+  /** Сколько монстров волны этажа убито и сколько их было всего; null — волны на этаже ещё не было. */
+  waveStats(floor: number): { killed: number; total: number } | null {
+    const wave = this.waveMonsters.get(floor);
+    if (!wave) return null;
+    return { killed: wave.filter((m) => !m.alive).length, total: wave.length };
+  }
+
+  /** Убито и всего монстров за игру (считаются монстры всех уже появившихся волн). */
+  totalStats(): { killed: number; total: number } {
+    let killed = 0, total = 0;
+    for (const wave of this.waveMonsters.values()) {
+      total += wave.length;
+      killed += wave.filter((m) => !m.alive).length;
+    }
+    return { killed, total };
+  }
+
   /** Все боевые этажи посещены, и на каждом не осталось живых монстров. */
   private allFloorsCleared() {
     return COMBAT_FLOORS.every((floor) => {

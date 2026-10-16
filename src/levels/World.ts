@@ -63,7 +63,7 @@ const THEMES: Record<number, Theme> = {
       for (const [x, z] of [[-5, -4], [5, -4], [-5, 1.5], [5, 1.5]]) b.box("metal", "table", [3, 0.9, 1.1], [x, 0.45, z]);
       for (const z of [-6, -4.8, -3.6, -2.4]) b.box("metal", "locker", [0.6, 2, 1], [-9.5, 1, z]);
       b.cyl("metal", "tank", 1.2, 2.4, [8.6, 1.2, 5.5]);
-      // Ящик с секретом: пентаграмма на его южной грани (см. secrets/secretDefs.ts).
+      // Ящик с секретом: знак радиации на его южной грани (см. secrets/secretDefs.ts).
       b.box("crate", "secret_crate", [SECRET_CRATE.size, SECRET_CRATE.size, SECRET_CRATE.size], SECRET_CRATE.pos);
     },
   },

@@ -1,7 +1,7 @@
-import { AbstractMesh, Color3, Ray, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, Ray, Scene, Vector3 } from "@babylonjs/core";
 import { CONFIG } from "../config";
 import { MOON_POSITION } from "../levels/Sky";
-import { PentagramSwitch } from "./PentagramSwitch";
+import { RadiationSwitch } from "./RadiationSwitch";
 import { SECRET_DEFS } from "./secretDefs";
 
 export interface SecretActivation {
@@ -9,21 +9,19 @@ export interface SecretActivation {
   floor: number;
   /** Сколько секретов осталось на всю игру (включая финальный). */
   remaining: number;
-  /** Именно эта активация открыла финальный секрет на этаже 0. */
-  finalUnlocked: boolean;
   /** Это и был финальный секрет. */
   isFinale: boolean;
 }
 
 /**
  * Секреты игры. Активируются только оружием игрока:
- * пентаграммы — попаданием в меш (metadata.secret), луна — выстрелом в её сторону на крыше.
+ * знаки радиации — попаданием в меш (metadata.secret), луна — выстрелом в её сторону на крыше.
  * Финальный секрет на этаже 0 появляется после активации всех остальных.
  */
 export class Secrets {
   readonly total = SECRET_DEFS.length;
 
-  private readonly switches = new Map<string, PentagramSwitch>();
+  private readonly switches = new Map<string, RadiationSwitch>();
   private readonly activated = new Set<string>();
   private readonly moonDir = MOON_POSITION.normalizeToNew();
 
@@ -31,18 +29,19 @@ export class Secrets {
 
   constructor(
     private readonly scene: Scene,
-    private readonly sky: { moonMaterial: StandardMaterial; haloMaterial: StandardMaterial },
+    private readonly sky: { crackMoon: () => void },
   ) {
     for (const def of SECRET_DEFS) {
       if (def.kind !== "switch") continue;
       const y0 = def.floor * CONFIG.elevator.floorHeight;
       const p = def.position!;
-      const sw = new PentagramSwitch(
+      const sw = new RadiationSwitch(
         scene,
         def.id,
         [p[0], p[1] + y0, p[2]],
         def.normal!,
         def.size ?? CONFIG.secrets.switchSize,
+        !!def.finale,
       );
       if (def.finale) sw.setVisible(false);
       this.switches.set(def.id, sw);
@@ -55,6 +54,11 @@ export class Secrets {
 
   get remaining() {
     return this.total - this.activated.size;
+  }
+
+  /** Анимация зловещего финального секрета. */
+  update(dt: number) {
+    for (const sw of this.switches.values()) sw.update(dt);
   }
 
   /** Попадание оружия игрока в меш (хитскан, ракета, рельсотрон). */
@@ -100,29 +104,21 @@ export class Secrets {
 
     this.activated.add(id);
     this.switches.get(id)?.activate();
-    if (def.kind === "moon") this.reddenMoon();
+    if (def.kind === "moon") this.sky.crackMoon();
 
-    let finalUnlocked = false;
     if (!def.finale && this.allBaseActivated()) {
       for (const d of SECRET_DEFS) if (d.finale) this.switches.get(d.id)?.setVisible(true);
-      finalUnlocked = true;
     }
 
     this.onActivated({
       id,
       floor: def.floor,
       remaining: this.remaining,
-      finalUnlocked,
       isFinale: !!def.finale,
     });
   }
 
   private allBaseActivated() {
     return SECRET_DEFS.filter((d) => !d.finale).every((d) => this.activated.has(d.id));
-  }
-
-  private reddenMoon() {
-    this.sky.moonMaterial.emissiveColor = new Color3(0.6, 0.08, 0.04);
-    this.sky.haloMaterial.emissiveColor = new Color3(0.9, 0.12, 0.05);
   }
 }

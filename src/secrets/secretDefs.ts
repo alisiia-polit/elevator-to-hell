@@ -7,7 +7,7 @@ import { CONFIG } from "../config";
 export interface SecretDef {
   id: string;
   floor: number;
-  /** switch — плоская пентаграмма на поверхности; moon — выстрел в луну на крыше. */
+  /** switch — плоский знак радиационной угрозы на поверхности; moon — выстрел в луну на крыше. */
   kind: "switch" | "moon";
   position?: [number, number, number];
   /** Направление наружу из поверхности (x, z). */
@@ -18,7 +18,7 @@ export interface SecretDef {
 }
 
 const { halfX, halfZ } = CONFIG.level;
-const INSET = 0.02; // пентаграмма чуть выступает над поверхностью
+const INSET = 0.02; // знак чуть выступает над поверхностью
 
 /** Ящик-носитель секрета на этаже 2 (добавляется в World вместе с остальными предметами). */
 export const SECRET_CRATE = { pos: [9.0, 0.6, 1.0] as [number, number, number], size: 1.2 };
@@ -26,7 +26,7 @@ export const SECRET_CRATE = { pos: [9.0, 0.6, 1.0] as [number, number, number], 
 export const SECRET_DEFS: SecretDef[] = [
   // Склад: восточная стена в узком проходе за штабелем ящиков.
   { id: "floor1", floor: 1, kind: "switch", position: [halfX - INSET, 1.0, -5.0], normal: [-1, 0] },
-  // Лаборатория: на южной грани ящика (со стороны входа её не видно).
+  // Лаборатория: на южной грани ящика (со стороны входа знак не виден).
   {
     id: "floor2", floor: 2, kind: "switch", normal: [0, -1],
     position: [SECRET_CRATE.pos[0], SECRET_CRATE.pos[1], SECRET_CRATE.pos[2] - SECRET_CRATE.size / 2 - INSET],
@@ -36,5 +36,5 @@ export const SECRET_DEFS: SecretDef[] = [
   // Крыша: выстрел в луну.
   { id: "floor4", floor: 4, kind: "moon" },
   // Холл: стена напротив входа в лифт (лифт — на севере, секрет — на южной стене).
-  { id: "floor0", floor: 0, kind: "switch", position: [0, 1.6, -halfZ + INSET], normal: [0, 1], size: 0.9, finale: true },
+  { id: "floor0", floor: 0, kind: "switch", position: [0, 1.6, -halfZ + INSET], normal: [0, 1], size: 1.5, finale: true },
 ];

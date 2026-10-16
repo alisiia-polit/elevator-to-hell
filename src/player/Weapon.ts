@@ -29,6 +29,9 @@ type DamageTarget = Npc | Monster;
 // Геометрия/хитбокс монстров при этом не изменяется.
 const RAILGUN_CALCULATION_RADIUS = 0.05;
 
+// Насколько далеко от ствола ракета появляется в момент выстрела.
+const ROCKET_SPAWN_OFFSET = 0.85;
+
 interface RocketProjectile {
   root: TransformNode;
   position: Vector3;
@@ -84,7 +87,7 @@ export class Weapon {
   /** Выстрел игрока: луч прицела (для секрета «луна»). */
   onShotRay: (origin: Vector3, direction: Vector3) => void = () => {};
 
-  /** Меш, в который попал снаряд игрока (для секретов-пентаграмм). */
+  /** Меш, в который попал снаряд игрока (для секретов со знаком радиации). */
   onSecretMesh: (mesh: AbstractMesh | null | undefined) => void = () => {};
 
   constructor(
@@ -606,9 +609,48 @@ export class Weapon {
 
     const aimRay = this.player.getEyeRay(80);
     const muzzlePosition = this.getMuzzleWorldPosition();
-    const aimPoint = aimRay.origin.add(
+    let aimPoint = aimRay.origin.add(
       aimRay.direction.scale(80),
     );
+
+    // Секрет под прицелом. Ракета вылетает из ствола (правее и ниже глаз) и падает
+    // под гравитацией, поэтому по небольшой цели она раньше проходила мимо.
+    const secret = this.pickSecretUnderAim(aimRay);
+
+    if (secret) {
+      const toTarget = Vector3.Distance(
+        muzzlePosition,
+        secret.point,
+      );
+
+      // Цель вплотную: ракета в момент появления уже была бы за ней.
+      if (toTarget <= ROCKET_SPAWN_OFFSET + 0.4) {
+        this.explodeRocket(secret.point, secret.mesh);
+        return;
+      }
+
+      // Иначе целимся с поправкой на параллакс ствола и падение ракеты.
+      const flightTime =
+        (toTarget - ROCKET_SPAWN_OFFSET) /
+        W.projectileSpeed;
+
+      const drop =
+        0.5 *
+        Math.abs(W.projectileGravity) *
+        flightTime *
+        flightTime;
+
+      aimPoint = secret.point.add(
+        new Vector3(
+          0,
+          drop *
+            (toTarget /
+              (toTarget - ROCKET_SPAWN_OFFSET)),
+          0,
+        ),
+      );
+    }
+
     const launchDirection = aimPoint
       .subtract(muzzlePosition)
       .normalize();
@@ -721,7 +763,7 @@ export class Weapon {
     flame.isPickable = false;
 
     const position = muzzlePosition.add(
-      launchDirection.scale(0.85),
+      launchDirection.scale(ROCKET_SPAWN_OFFSET),
     );
 
     root.position.copyFrom(position);
@@ -759,6 +801,32 @@ export class Weapon {
       age: 0,
       trail,
     });
+  }
+
+  /** Первая твёрдая поверхность под прицелом, если это секрет: меш и точка попадания. */
+  private pickSecretUnderAim(ray: Ray) {
+    const hit = this.scene.pickWithRay(
+      ray,
+      (mesh) =>
+        mesh.isVisible &&
+        mesh.isEnabled() &&
+        mesh.isPickable &&
+        !mesh.metadata?.weaponPickup,
+    );
+
+    if (
+      !hit?.hit ||
+      !hit.pickedPoint ||
+      !hit.pickedMesh ||
+      typeof hit.pickedMesh.metadata?.secret !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      mesh: hit.pickedMesh,
+      point: hit.pickedPoint,
+    };
   }
 
   private updateRocketLauncherIndicator() {

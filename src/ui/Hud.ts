@@ -1,3 +1,12 @@
+/** Статистика игры для экрана окончания. */
+export interface ResultStats {
+  time: string;
+  monstersKilled: number;
+  monstersTotal: number;
+  secretsFound: number;
+  secretsTotal: number;
+}
+
 /** Экранный интерфейс: оверлей паузы, прицел, подсказка, кровь и сообщения. */
 export class Hud {
   private overlay = document.getElementById("overlay") as HTMLElement;
@@ -5,6 +14,8 @@ export class Hud {
   private hint = document.getElementById("hint") as HTMLElement;
   private toastEl = document.getElementById("toast") as HTMLElement;
   private secretsEl = document.getElementById("secrets") as HTMLElement;
+  private monstersEl = document.getElementById("monsters") as HTMLElement;
+  private healthEl = document.getElementById("health") as HTMLElement;
   private bloodEl: HTMLElement | null = document.getElementById("bloodFx");
   private timer = 0;
   private bloodTimer = 0;
@@ -26,6 +37,40 @@ export class Hud {
     this.crosshair.classList.add("hidden");
     this.hint.classList.add("hidden");
     this.secretsEl.classList.add("hidden");
+    this.monstersEl.classList.add("hidden");
+    this.healthEl.classList.add("hidden");
+  }
+
+  /** Счётчик монстров этажа «убито/всего» (правый верхний угол). */
+  setMonsters(killed: number, total: number) {
+    const text = `МОНСТРІВ: ${killed}/${total}`;
+    if (this.monstersEl.textContent !== text) this.monstersEl.textContent = text;
+    this.monstersEl.classList.remove("hidden");
+  }
+
+  hideMonsters() {
+    this.monstersEl.classList.add("hidden");
+  }
+
+  /** Индикатор здоровья в процентах (левый нижний угол): появляется после первого урона. */
+  setHealth(percent: number) {
+    this.healthEl.textContent = `ЗДОРОВ'Я: ${percent}%`;
+    this.healthEl.style.color = percent > 60 ? "#9fd070" : percent > 30 ? "#e0a83c" : "#ff4a33";
+    this.healthEl.classList.remove("hidden");
+  }
+
+  /** Рестарт из меню (Esc): кнопка в оверлее и клавиша R, пока оверлей показан. */
+  onRestart(cb: () => void) {
+    document.getElementById("restartKey")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      cb();
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.code !== "KeyR" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (this.overlay.classList.contains("hidden")) return;
+      cb();
+    });
   }
 
   /** Постоянная надпись об оставшихся секретах: появляется после первого активированного и остаётся до конца игры. */
@@ -77,13 +122,18 @@ export class Hud {
   }
 
   /** Немедленный экран окончания игры с ручным рестартом по клику. */
-  showResult(title: string, subtitle: string, onRestart: () => void) {
+  showResult(title: string, subtitle: string, stats: ResultStats, onRestart: () => void) {
     this.crosshair.classList.add("hidden");
     this.hint.classList.add("hidden");
     this.overlay.innerHTML = `
       <h1>${title}</h1>
       <p>"${subtitle}"</p>
-      <button id="restartButton" type="button">Перезапустити гру</button>
+      <p class="stats">
+        Час гри: ${stats.time}<br>
+        Монстрів убито: ${stats.monstersKilled}/${stats.monstersTotal}<br>
+        Секретів знайдено: ${stats.secretsFound}/${stats.secretsTotal}
+      </p>
+      <button id="restartButton" type="button">Перезапустити гру (R)</button>
     `;
     this.overlay.classList.remove("hidden");
     this.overlay.style.cursor = "default";
