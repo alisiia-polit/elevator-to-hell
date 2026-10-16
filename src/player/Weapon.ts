@@ -81,6 +81,12 @@ export class Weapon {
 
   onPickup: (type: WeaponType) => void = () => {};
 
+  /** Выстрел игрока: луч прицела (для секрета «луна»). */
+  onShotRay: (origin: Vector3, direction: Vector3) => void = () => {};
+
+  /** Меш, в который попал снаряд игрока (для секретов-пентаграмм). */
+  onSecretMesh: (mesh: AbstractMesh | null | undefined) => void = () => {};
+
   constructor(
     private readonly scene: Scene,
     private readonly player: Player,
@@ -115,14 +121,6 @@ export class Weapon {
     }
 
     this.rebuildHeldModel();
-  }
-
-  get currentType() {
-    return this.activeType;
-  }
-
-  get currentName() {
-    return WEAPON_LABELS[this.activeType];
   }
 
   getPickupHint(): string | null {
@@ -432,6 +430,9 @@ export class Weapon {
     this.flashT = 0.055;
 
     this.player.addPitch(-recoil);
+
+    const aim = this.player.getEyeRay(1);
+    this.onShotRay(aim.origin, aim.direction);
   }
 
   private fireShotgun() {
@@ -479,7 +480,7 @@ export class Weapon {
           mesh.isPickable,
       );
 
-      this.damagePickedTarget(hit?.pickedMesh, W.damage);
+      this.resolveShotHit(hit?.pickedMesh, W.damage);
     }
   }
 
@@ -521,7 +522,7 @@ export class Weapon {
         mesh.isPickable,
     );
 
-    this.damagePickedTarget(
+    this.resolveShotHit(
       hit?.pickedMesh,
       W.damage,
     );
@@ -587,7 +588,7 @@ export class Weapon {
             mesh.isPickable,
         );
 
-      this.damagePickedTarget(
+      this.resolveShotHit(
         hit?.pickedMesh,
         W.damage,
       );
@@ -860,6 +861,8 @@ export class Weapon {
       );
 
       if (!target) {
+        this.onSecretMesh(hit.pickedMesh);
+
         trailEnd =
           hit.pickedPoint ??
           trailEnd;
@@ -1290,15 +1293,6 @@ export class Weapon {
         Math.PI *
         2;
 
-      /*
-      * Небольшое затухание у начала и конца,
-      * чтобы спираль красиво сходилась.
-      */
-      // const endFade =
-      //   Math.sin(Math.PI * t);
-
-      // const currentRadius =
-      //   radius * endFade;
       const currentRadius = radius;
 
       const center =
@@ -1411,6 +1405,8 @@ export class Weapon {
     directHit?: AbstractMesh | null,
   ) {
     const W = CONFIG.weapon.rocketLauncher;
+
+    this.onSecretMesh(directHit);
 
     const directTarget =
       this.getTarget(directHit);
@@ -1569,10 +1565,12 @@ export class Weapon {
     }
   }
 
-  private damagePickedTarget(
+  private resolveShotHit(
     mesh: AbstractMesh | null | undefined,
     damage: number,
   ) {
+    this.onSecretMesh(mesh);
+
     const target = this.getTarget(mesh);
 
     if (target?.alive) {
@@ -1592,37 +1590,6 @@ export class Weapon {
       mesh.metadata.monster ??
       null
     );
-  }
-
-  private hasLineOfSight(
-    from: Vector3,
-    to: Vector3,
-  ) {
-    const delta = to.subtract(from);
-    const distance = delta.length();
-
-    if (distance < 0.01) {
-      return true;
-    }
-
-    const ray = new Ray(
-      from,
-      delta.normalize(),
-      distance,
-    );
-
-    const hit = this.scene.pickWithRay(
-      ray,
-      (mesh) =>
-        mesh.isVisible &&
-        mesh.isEnabled() &&
-        mesh.isPickable &&
-        !mesh.metadata?.npc &&
-        !mesh.metadata?.monster &&
-        !mesh.metadata?.weaponPickup,
-    );
-
-    return !hit?.hit;
   }
 
   fireHeld() {

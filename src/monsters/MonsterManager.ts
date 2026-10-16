@@ -19,6 +19,9 @@ const WALKER_COLORS = [
   new Color3(0.28, 0.31, 0.38),
 ];
 
+/** Боевые этажи: на каждом при первом прибытии лифта появляется волна монстров. */
+const COMBAT_FLOORS = [1, 2, 3, 4];
+
 /** Управляет волной монстров после прибытия лифта на боевой этаж. */
 export class MonsterManager {
   private monsters: Monster[] = [];
@@ -33,17 +36,18 @@ export class MonsterManager {
   private readonly grenades: GrenadeSystem;
   private readonly director: GrenadeDirector;
   private doorOpen: () => boolean = () => false;
+  private victoryGate: () => boolean = () => true;
   /** Откуда бросили гранату (для индикации на экране). */
   onGrenadeThrown: (origin: Vector3) => void = () => {};
 
-  onVictory: (floor: number) => void = () => {};
+  /** Победа: все монстры на всех боевых этажах уничтожены (и победа не заблокирована условием). */
+  onVictory: () => void = () => {};
 
   constructor(
     private readonly scene: Scene,
     private readonly player: Player,
     private readonly npcs: Npc[],
     private readonly cabin: TransformNode,
-    private readonly say: (text: string, ms?: number) => void,
   ) {
     this.grenades = new GrenadeSystem(scene, player, npcs);
     this.director = new GrenadeDirector(scene, player, cabin, this.grenades, () => this.doorOpen());
@@ -53,6 +57,11 @@ export class MonsterManager {
   /** Открыты ли двери кабины на этаже: граната может залететь в лифт только через открытую дверь. */
   setDoorOpenProvider(fn: () => boolean) {
     this.doorOpen = fn;
+  }
+
+  /** Дополнительное условие победы: пока оно возвращает false, победа невозможна. */
+  setVictoryGate(fn: () => boolean) {
+    this.victoryGate = fn;
   }
 
   update(dt: number) {
@@ -77,18 +86,24 @@ export class MonsterManager {
     }
 
     for (const [floor, group] of this.waveMonsters) {
-      const aliveOnFloor = group.filter((m) => m.alive);
-
       this.waveMonsters.set(
         floor,
-        aliveOnFloor.concat(group.filter((m) => !m.alive)),
+        group.filter((m) => m.alive).concat(group.filter((m) => !m.alive)),
       );
-
-      if (this.player.alive && !this.victory && aliveOnFloor.length === 0) {
-        this.victory = true;
-        this.onVictory(floor);
-      }
     }
+
+    if (this.player.alive && !this.victory && this.victoryGate() && this.allFloorsCleared()) {
+      this.victory = true;
+      this.onVictory();
+    }
+  }
+
+  /** Все боевые этажи посещены, и на каждом не осталось живых монстров. */
+  private allFloorsCleared() {
+    return COMBAT_FLOORS.every((floor) => {
+      const wave = this.waveMonsters.get(floor);
+      return wave !== undefined && wave.every((m) => !m.alive);
+    });
   }
 
   freezeLiving() {
@@ -98,8 +113,7 @@ export class MonsterManager {
   spawnForFloor(floor: number) {
     if (
       this.startedFloors.has(floor) ||
-      floor < 1 ||
-      floor > 4 ||
+      !COMBAT_FLOORS.includes(floor) ||
       !this.player.alive
     ) {
       return;
@@ -142,7 +156,6 @@ export class MonsterManager {
       this.monsters.push(new WalkerMonster(
         this.scene,
         new Vector3(p.x + (Math.random() - 0.5) * 0.2, y, p.z + (Math.random() - 0.5) * 0.2),
-        floor,
         this.player,
         this.npcs,
         WALKER_COLORS[i % WALKER_COLORS.length],
@@ -171,9 +184,5 @@ export class MonsterManager {
         this.scene, position, center, this.player, this.npcs, new Color3(0.2 + i * 0.08, 0.22, 0.24),
       ));
     }
-  }
-
-  get aliveCount() {
-    return this.monsters.filter((m) => m.alive).length;
   }
 }

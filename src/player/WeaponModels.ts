@@ -1,6 +1,5 @@
 import {
   Color3,
-  Mesh,
   MeshBuilder,
   Scene,
   StandardMaterial,
@@ -22,7 +21,7 @@ export const WEAPON_LABELS: Record<WeaponType, string> = {
   RAILGUN: "РЕЛЬСОТРОН",
 };
 
-export interface WeaponVisual {
+interface WeaponVisual {
   root: TransformNode;
   muzzleZ: number;
 }
@@ -111,7 +110,6 @@ export function buildWeaponVisual(
   const darkSteel = new Color3(0.07, 0.08, 0.10);
   const black = new Color3(0.025, 0.025, 0.03);
   const brown = new Color3(0.30, 0.16, 0.07);
-  const orange = new Color3(0.8, 0.22, 0.03);
   const red = new Color3(0.8, 0.04, 0.02);
   const blue = new Color3(0.05, 0.28, 0.70);
   const cyan = new Color3(0.05, 0.7, 0.95);

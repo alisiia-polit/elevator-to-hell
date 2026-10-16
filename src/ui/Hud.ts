@@ -4,6 +4,7 @@ export class Hud {
   private crosshair = document.getElementById("crosshair") as HTMLElement;
   private hint = document.getElementById("hint") as HTMLElement;
   private toastEl = document.getElementById("toast") as HTMLElement;
+  private secretsEl = document.getElementById("secrets") as HTMLElement;
   private bloodEl: HTMLElement | null = document.getElementById("bloodFx");
   private timer = 0;
   private bloodTimer = 0;
@@ -24,6 +25,13 @@ export class Hud {
     this.overlay.classList.add("hidden");
     this.crosshair.classList.add("hidden");
     this.hint.classList.add("hidden");
+    this.secretsEl.classList.add("hidden");
+  }
+
+  /** Постоянная надпись об оставшихся секретах: появляется после первого активированного и остаётся до конца игры. */
+  setSecretsRemaining(remaining: number) {
+    this.secretsEl.textContent = `СЕКРЕТІВ ЗАЛИШИЛОСЬ: ${remaining}`;
+    this.secretsEl.classList.remove("hidden");
   }
 
   /** Бросок гранаты: у края экрана на несколько секунд появляется стрелка в сторону, откуда бросили. */

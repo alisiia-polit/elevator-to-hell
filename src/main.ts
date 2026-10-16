@@ -3,6 +3,7 @@ import {
   Color4,
   Engine,
   Scene,
+  Vector3,
 } from "@babylonjs/core";
 
 import { CONFIG } from "./config";
@@ -12,10 +13,12 @@ import {
   NpcEnv,
   spawnNpcs,
 } from "./npc/Npc";
+import { FinalBossPlaceholder } from "./monsters/FinalBoss";
 import { MonsterManager } from "./monsters/MonsterManager";
 import { Player } from "./player/Player";
 import { Weapon } from "./player/Weapon";
 import { WEAPON_LABELS } from "./player/WeaponModels";
+import { Secrets } from "./secrets/Secrets";
 import { Hud } from "./ui/Hud";
 
 const canvas =
@@ -80,8 +83,12 @@ const monsters = new MonsterManager(
   player,
   npcs,
   world.cabin.root,
-  (t, ms) => hud.toast(t, ms),
 );
+
+const secrets = new Secrets(scene, world.sky);
+
+// Заглушка финального босса: появляется в холле после активации пятого секрета.
+let finalBoss: FinalBossPlaceholder | null = null;
 
 let ending = false;
 
@@ -153,12 +160,47 @@ monsters.onGrenadeThrown = (origin) => hud.warnGrenade(origin);
 elevator.onArrived = (floor) =>
   monsters.spawnForFloor(floor);
 
-monsters.onVictory = (floor) =>
+// Победа: уничтожены все монстры на всех этажах, и при этом ни один секрет не активирован.
+monsters.setVictoryGate(
+  () => secrets.activatedCount === 0,
+);
+
+monsters.onVictory = () =>
   finishVictory(
-    floor === 4
-      ? "ДАХ ОЧИЩЕНО — ПЕРЕМОГА"
-      : `ПОВЕРХ ${floor} ОЧИЩЕНО — ПЕРЕМОГА`,
+    "ВСІХ МОНСТРІВ ЗНИЩЕНО — ПЕРЕМОГА",
   );
+
+weapon.onShotRay = (origin, direction) =>
+  secrets.shotFired(origin, direction);
+
+weapon.onSecretMesh = (mesh) =>
+  secrets.hitMesh(mesh);
+
+secrets.onActivated = (info) => {
+  hud.setSecretsRemaining(info.remaining);
+
+  if (info.isFinale) {
+    finalBoss = new FinalBossPlaceholder(
+      scene,
+      new Vector3(0, 2.2, -1),
+    );
+
+    hud.toast(
+      "ВСІ СЕКРЕТИ АКТИВОВАНО! ФІНАЛЬНИЙ БОС ПРОКИНУВСЯ (заглушка)",
+      5000,
+    );
+    return;
+  }
+
+  const base = `СЕКРЕТ АКТИВОВАНО! Залишилось секретів: ${info.remaining}`;
+
+  hud.toast(
+    info.finalUnlocked
+      ? `${base}. Останній секрет з'явився на поверсі 0, на стіні навпроти ліфта`
+      : base,
+    4500,
+  );
+};
 
 weapon.onPickup = (type) => {
   hud.toast(
@@ -269,6 +311,8 @@ scene.onBeforeRenderObservable.add(
       elevator.update(dt);
       weapon.update(dt);
     }
+
+    finalBoss?.update(dt);
 
     npcs.forEach(
       (npc) =>

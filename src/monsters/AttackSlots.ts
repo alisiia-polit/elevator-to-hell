@@ -3,7 +3,7 @@ import type { DamageTarget } from "./Monster";
 import type { NavGrid, Point } from "./NavGrid";
 
 /** Участник раздачи позиций: монстр, у которого есть цель и место (слот) вокруг неё. */
-export interface SlotUser {
+interface SlotUser {
   alive: boolean;
   currentTarget: DamageTarget | null;
   slot: Point | null;

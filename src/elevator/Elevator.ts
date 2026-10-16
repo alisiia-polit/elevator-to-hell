@@ -6,7 +6,7 @@ import { CabinPanel, ButtonKey } from "./CabinPanel";
 import { Door } from "./Door";
 
 /** Конечный автомат лифта, включая лаву и аварийное падение (этап 5). */
-export type ElevatorState =
+type ElevatorState =
   | "IDLE" | "CLOSING" | "OVERLOADED" | "MOVING" | "OPENING"
   | "LAVA" | "EMERGENCY_WAIT" | "EMERGENCY_BREAK" | "EMERGENCY_FALL" | "EMERGENCY_CRASHED";
 

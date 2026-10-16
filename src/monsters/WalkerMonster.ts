@@ -6,7 +6,7 @@ import { DamageTarget, horizontalDistance, Monster, randomFloat } from "./Monste
 import type { NavGrid, Point } from "./NavGrid";
 import { isRobust, releaseThrow, ThrowRequest, Thrower } from "./GrenadeDirector";
 
-export type WalkerState = "CHASE" | "ATTACK" | "DEAD";
+type WalkerState = "CHASE" | "ATTACK" | "DEAD";
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -55,7 +55,7 @@ export class WalkerMonster extends Monster implements Thrower {
   private lastX = 0;
   private lastZ = 0;
 
-  constructor(scene: Scene, position: Vector3, floor: number, player: Player, npcs: Npc[], color: Color3, nav: NavGrid) {
+  constructor(scene: Scene, position: Vector3, player: Player, npcs: Npc[], color: Color3, nav: NavGrid) {
     // Лёжа тело опирается на спину/грудь, поэтому труп приподнят над полом.
     super(scene, "walker", position, CONFIG.monsters.walker.hp, position.y + 0.36);
     this.player = player;

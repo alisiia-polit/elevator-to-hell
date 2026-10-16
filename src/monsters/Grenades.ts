@@ -70,8 +70,6 @@ export class GrenadeSystem {
   private explosions: ExplosionFx[] = [];
   /** Вызывается при вылете гранаты: сюда подключается индикация на экране. */
   onLaunch: (origin: Vector3) => void = () => {};
-  /** Где взорвалась последняя граната (для отладки и тестов). */
-  lastExplosion: Vector3 | null = null;
 
   constructor(private readonly scene: Scene, private readonly player: Player, private readonly npcs: Npc[]) {}
 
@@ -95,8 +93,6 @@ export class GrenadeSystem {
     this.onLaunch(from.clone());
     this.grenades.push({ root, trail, position: from.clone(), velocity: velocity.clone(), age: 0, boxes: staticBoxes(this.scene, true) });
   }
-
-  get inFlight() { return this.grenades.length; }
 
   update(dt: number) {
     const G = CONFIG.grenade;
@@ -141,7 +137,6 @@ export class GrenadeSystem {
 
   private explode(pos: Vector3, boxes: Aabb[]) {
     const G = CONFIG.grenade;
-    this.lastExplosion = pos.clone();
     const dmgAt = (center: Vector3) => {
       const d = Vector3.Distance(center, pos);
       if (d > G.explosionRadius) return 0;

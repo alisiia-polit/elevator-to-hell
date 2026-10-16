@@ -5,7 +5,7 @@ import type { Player } from "../player/Player";
 import type { ThrowRequest, Thrower } from "./GrenadeDirector";
 import { DamageTarget, horizontalDistance, Monster, randomFloat } from "./Monster";
 
-export type FlyingState = "ORBIT" | "DIVE" | "RECOVER" | "THROW" | "DEAD";
+type FlyingState = "ORBIT" | "DIVE" | "RECOVER" | "THROW" | "DEAD";
 
 /** Летающий монстр крыши: кружит, активно машет крыльями и пикирует на цель. */
 export class FlyingMonster extends Monster implements Thrower {

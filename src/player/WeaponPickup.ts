@@ -22,10 +22,9 @@ export class WeaponPickup {
   private readonly ring: Mesh;
   private time = Math.random() * Math.PI * 2;
   private consumed = false;
-  constructorFloor!: number;
 
   constructor(
-    private readonly scene: Scene,
+    scene: Scene,
     type: WeaponType,
     position: Vector3,
     readonly floor: number,
@@ -84,26 +83,6 @@ export class WeaponPickup {
     const pulse = 0.9 + Math.sin(this.time * 3.5) * 0.1;
     this.ring.scaling.setAll(pulse);
   }
-
-    distanceTo(position: Vector3) {
-        // Оружие другого этажа никогда не считается доступным.
-        if (
-            Math.abs(
-            this.root.getAbsolutePosition().y -
-            position.y,
-            ) > 2.0
-        ) {
-            return Number.POSITIVE_INFINITY;
-        }
-
-        return Math.hypot(
-            this.root.getAbsolutePosition().x -
-            position.x,
-
-            this.root.getAbsolutePosition().z -
-            position.z,
-        );
-    }
 
   consume() {
     if (this.consumed) return;

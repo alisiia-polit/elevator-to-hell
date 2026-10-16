@@ -1,5 +1,8 @@
-import { Color3, MeshBuilder, Scene, StandardMaterial } from "@babylonjs/core";
+import { Color3, MeshBuilder, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 import { canvasTexture, noise, rng } from "../utils/textures";
+
+/** Положение луны относительно камеры: она всегда видна в одном направлении. */
+export const MOON_POSITION = new Vector3(-60, 230, -110);
 
 /** Звёздное небо и луна для крыши. Следуют за камерой (infiniteDistance) и не затуманиваются. */
 export function createSky(scene: Scene) {
@@ -37,13 +40,15 @@ export function createSky(scene: Scene) {
   for (let i = 0; i < 9; i++) { mt.ctx.beginPath(); mt.ctx.arc(r() * 64, r() * 64, 4 + r() * 6, 0, Math.PI * 2); mt.ctx.fill(); }
   mt.tex.update();
   const moon = MeshBuilder.CreateSphere("moon", { diameter: 28, segments: 12 }, scene);
-  moon.material = unlit("moon_mat", null, mt.tex);
+  const moonMaterial = unlit("moon_mat", null, mt.tex);
+  moon.material = moonMaterial;
   const halo = MeshBuilder.CreateSphere("moon_halo", { diameter: 44, segments: 12 }, scene);
   const hm = unlit("halo_mat", new Color3(0.35, 0.42, 0.6));
   hm.alpha = 0.16;
   halo.material = hm;
   for (const m of [moon, halo]) {
-    m.position.set(-60, 230, -110);
+    m.position.copyFrom(MOON_POSITION);
     m.infiniteDistance = true; m.isPickable = false; m.applyFog = false;
   }
+  return { moonMaterial, haloMaterial: hm };
 }

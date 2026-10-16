@@ -34,33 +34,6 @@ export function noise(c: Ctx, r: Rnd, base: number[], amp: number, size = SIZE) 
     }
 }
 
-const BORDER_THICKNESS = 5;
-
-/** Рисует непрерывную рамку по внешнему периметру текстуры. */
-function drawPerimeterBorder(
-  c: Ctx,
-  borderColor: string,
-  bevelColor?: string,
-) {
-  const b = BORDER_THICKNESS;
-
-  c.fillStyle = borderColor;
-  c.fillRect(0, 0, SIZE, b);                 // верх
-  c.fillRect(0, SIZE - b, SIZE, b);          // низ
-  c.fillRect(0, 0, b, SIZE);                 // левая сторона
-  c.fillRect(SIZE - b, 0, b, SIZE);          // правая сторона
-
-  // Тонкий симметричный блик по внутреннему краю рамки.
-  // Углы не перекрашиваются, поэтому внешний контур остаётся цельным.
-  if (bevelColor) {
-    c.fillStyle = bevelColor;
-    c.fillRect(b, b - 1, SIZE - 2 * b, 1);
-    c.fillRect(b, SIZE - b, SIZE - 2 * b, 1);
-    c.fillRect(b - 1, b, 1, SIZE - 2 * b);
-    c.fillRect(SIZE - b, b, 1, SIZE - 2 * b);
-  }
-}
-
 /**
  * Рамка на текстуре строго по периметру: w px тела, внешний контур 1 px,
  * скос внутреннего края (свет сверху и слева, тень снизу и справа).
@@ -246,9 +219,6 @@ const DRAW: Record<Kind, (c: Ctx, r: Rnd) => void> = {
         if ((x + y) % 8 === 0 || (x - y + SIZE) % 8 === 0) c.fillRect(x, y, 1, 1);
   },
 };
-
-/** Нужно для проверки и предпросмотра текстур вне игры. */
-export const TEXTURE_DRAWERS = DRAW;
 
 const cache = new WeakMap<Scene, Map<Kind, DynamicTexture>>();
 

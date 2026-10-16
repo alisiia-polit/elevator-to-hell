@@ -17,7 +17,7 @@ export interface NpcEnv {
 }
 /** Места NPC в кабине (локальные x, z): решётка 3×3 с шагом 1,6 м — соседние места не ближе 1,6 м друг к другу. */
 const CABIN_SLOTS = [[-1.6, 1.6], [0, 1.6], [1.6, 1.6], [-1.6, 0], [0, 0], [1.6, 0], [-1.6, -1.4], [0, -1.4], [1.6, -1.4]];
-export type NpcState = "CALM" | "PANIC" | "DEAD";
+type NpcState = "CALM" | "PANIC" | "DEAD";
 export type DeathCause = "weapon" | "lava" | "impact" | "crush";
 const CHAR = new Color3(0.05, 0.04, 0.04);
 
@@ -44,7 +44,6 @@ export class Npc {
   private losT = Math.random() * 0.25;
   private calmT = 0;
   private retarget = 0;
-  private tl = { x: 0, z: -2.1 }; // цель метаний внутри кабины (локально)
   private tw = { x: 0, z: 0 };    // динамическая цель убегания (мировая)
   /** Место, куда NPC убегает снаружи кабины (у каждого своё, подальше от стен и от остальных). */
   fleeGoal: Point | null = null;

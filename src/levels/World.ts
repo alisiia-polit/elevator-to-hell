@@ -4,6 +4,7 @@ import { createCabin } from "../elevator/CabinShell";
 import { Door } from "../elevator/Door";
 import { createMaterials, Kind } from "../utils/textures";
 import { addBox, addCylinder } from "./builders";
+import { SECRET_CRATE } from "../secrets/secretDefs";
 import { createSky } from "./Sky";
 import { LavaShaft } from "./LavaShaft";
 
@@ -62,6 +63,8 @@ const THEMES: Record<number, Theme> = {
       for (const [x, z] of [[-5, -4], [5, -4], [-5, 1.5], [5, 1.5]]) b.box("metal", "table", [3, 0.9, 1.1], [x, 0.45, z]);
       for (const z of [-6, -4.8, -3.6, -2.4]) b.box("metal", "locker", [0.6, 2, 1], [-9.5, 1, z]);
       b.cyl("metal", "tank", 1.2, 2.4, [8.6, 1.2, 5.5]);
+      // Ящик с секретом: пентаграмма на его южной грани (см. secrets/secretDefs.ts).
+      b.box("crate", "secret_crate", [SECRET_CRATE.size, SECRET_CRATE.size, SECRET_CRATE.size], SECRET_CRATE.pos);
     },
   },
   3: {
@@ -152,10 +155,10 @@ export function buildWorld(scene: Scene) {
   beacon.material = bm; beacon.isPickable = false;
   beacon.position.set(-8.2, 4 * floorHeight + 7.2, -6.2);
 
-  createSky(scene);
+  const sky = createSky(scene);
 
   // Кабина стоит сразу за северной стеной: стенка (0.2) + половина кабины.
   const cabin = createCabin(scene, baseMats, new Vector3(0, 0, hz + T + 0.2 + cabinSize / 2));
   const lava = new LavaShaft(scene, cabin.root.position);
-  return { mats: baseMats, cabin, landing, lava, spawn: new Vector3(0, 0, 0), spawnYaw: 0 };
+  return { mats: baseMats, cabin, landing, lava, sky, spawn: new Vector3(0, 0, 0), spawnYaw: 0 };
 }

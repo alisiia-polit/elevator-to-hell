@@ -12,7 +12,7 @@ interface BloodParticle {
 export class BloodBurst {
   private readonly particles: BloodParticle[] = [];
 
-  constructor(private readonly scene: Scene, origin: Vector3, hitFrom?: Vector3, viewDirection?: Vector3) {
+  constructor(scene: Scene, origin: Vector3, hitFrom?: Vector3, viewDirection?: Vector3) {
     // Кровь летит в сторону атакующего: от точки попадания к монстру.
     const towardAttacker = hitFrom
       ? hitFrom.subtract(origin)

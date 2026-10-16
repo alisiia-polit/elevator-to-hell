@@ -20,7 +20,6 @@ export const CONFIG = {
 
   level: {
     tile: 2,
-    wallHeight: 4,
     roofHeight: 4,
     wallThickness: 0.4,
     halfX: 10,
@@ -94,7 +93,6 @@ export const CONFIG = {
 
       // Размер видимого следа ракеты.
       trailLength: 1.0,
-      trailWidth: 0.045,
 
       recoil: 0.045,
     },
@@ -223,9 +221,15 @@ export const CONFIG = {
     voidY: -0.6,
   },
 
+  secrets: {
+    switchSize: 0.5,
+    // Угловой допуск попадания в луну, рад (видимый радиус луны ≈ 0.054).
+    moonHitAngle: 0.07,
+    moonRayLength: 120,
+  },
+
   result: {
     delayBeforeMessage: 2,
-    restartAfterMessage: 2,
   },
 
   lava: {

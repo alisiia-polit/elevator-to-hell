@@ -39,7 +39,7 @@ export function releaseThrow(req: ThrowRequest, hand: Vector3): boolean {
   return false;
 }
 
-export const isThrower = (m: Monster): m is Monster & Thrower => typeof (m as unknown as Thrower).startThrow === "function";
+const isThrower = (m: Monster): m is Monster & Thrower => typeof (m as unknown as Thrower).startThrow === "function";
 
 /**
  * Решает, когда монстрам пора бросить гранату.
@@ -62,8 +62,6 @@ export class GrenadeDirector {
     private readonly system: GrenadeSystem,
     private readonly doorOpen: () => boolean,
   ) {}
-
-  get campSeconds() { return this.camp; }
 
   reset() { this.camp = 0; this.anchor = null; this.hidden = false; }
 
