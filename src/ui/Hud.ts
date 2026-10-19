@@ -1,3 +1,5 @@
+import type { ScoreResult } from "../score";
+
 /** Статистика игры для экрана окончания. */
 export interface ResultStats {
   time: string;
@@ -5,6 +7,13 @@ export interface ResultStats {
   monstersTotal: number;
   secretsFound: number;
   secretsTotal: number;
+  /** Остаток здоровья игрока. */
+  health: number;
+  maxHealth: number;
+  /** Озверевшие NPC / все NPC. */
+  npcEnraged: number;
+  npcTotal: number;
+  score: ScoreResult;
 }
 
 /** Экранный интерфейс: оверлей паузы, прицел, подсказка, кровь и сообщения. */
@@ -16,6 +25,9 @@ export class Hud {
   private secretsEl = document.getElementById("secrets") as HTMLElement;
   private monstersEl = document.getElementById("monsters") as HTMLElement;
   private healthEl = document.getElementById("health") as HTMLElement;
+  private bossBarEl = document.getElementById("bossbar") as HTMLElement | null;
+  private bossFillEl = document.getElementById("bossbarFill") as HTMLElement | null;
+  private bossPercent = -1;
   private bloodEl: HTMLElement | null = document.getElementById("bloodFx");
   private timer = 0;
   private bloodTimer = 0;
@@ -39,6 +51,23 @@ export class Hud {
     this.secretsEl.classList.add("hidden");
     this.monstersEl.classList.add("hidden");
     this.healthEl.classList.add("hidden");
+    this.bossBarEl?.classList.add("hidden");
+  }
+
+  /** Шкала здоровья босса (правый нижний угол). fraction = null — скрыть; иначе доля 0..1. */
+  setBossHealth(fraction: number | null) {
+    if (!this.bossBarEl || !this.bossFillEl) return;
+    if (fraction === null) {
+      this.bossBarEl.classList.add("hidden");
+      this.bossPercent = -1;
+      return;
+    }
+    const percent = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+    if (percent !== this.bossPercent) {
+      this.bossPercent = percent;
+      this.bossFillEl.style.width = `${percent}%`;
+    }
+    this.bossBarEl.classList.remove("hidden");
   }
 
   /** Счётчик монстров этажа «убито/всего» (правый верхний угол). */
@@ -131,8 +160,12 @@ export class Hud {
       <p class="stats">
         Час гри: ${stats.time}<br>
         Монстрів убито: ${stats.monstersKilled}/${stats.monstersTotal}<br>
-        Секретів знайдено: ${stats.secretsFound}/${stats.secretsTotal}
+        Секретів знайдено: ${stats.secretsFound}/${stats.secretsTotal}<br>
+        Залишок здоров'я: ${Math.round((stats.health / Math.max(1, stats.maxHealth)) * 100)}%<br>
+        Осатанілих NPC: ${stats.npcEnraged}/${stats.npcTotal}
       </p>
+      <p class="score">РЕЗУЛЬТАТ: ${stats.score.total}</p>
+      <p class="score-lines">${stats.score.lines.map((l) => `${l.label}: ${l.value > 0 && l !== stats.score.lines[0] ? "+" : ""}${l.value}`).join("<br>")}</p>
       <button id="restartButton" type="button">Перезапустити гру (R)</button>
     `;
     this.overlay.classList.remove("hidden");

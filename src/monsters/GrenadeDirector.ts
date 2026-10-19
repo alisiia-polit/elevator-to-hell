@@ -16,7 +16,7 @@ export interface ThrowRequest {
 /** Монстр, умеющий бросать гранаты (ходячие и летающие). */
 export interface Thrower {
   alive: boolean;
-  kind: "walker" | "flying";
+  kind: "walker" | "flying" | "boss";
   canThrow(): boolean;
   getThrowOrigin(): Vector3;
   startThrow(req: ThrowRequest): boolean;

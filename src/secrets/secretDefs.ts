@@ -7,7 +7,7 @@ import { CONFIG } from "../config";
 export interface SecretDef {
   id: string;
   floor: number;
-  /** switch — плоский знак радиационной угрозы на поверхности; moon — выстрел в луну на крыше. */
+  /** switch — плоская перевёрнутая пентаграмма на поверхности; moon — выстрел в луну на крыше. */
   kind: "switch" | "moon";
   position?: [number, number, number];
   /** Направление наружу из поверхности (x, z). */

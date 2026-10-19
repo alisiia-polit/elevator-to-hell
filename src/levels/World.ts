@@ -5,6 +5,7 @@ import { Door } from "../elevator/Door";
 import { createMaterials, Kind } from "../utils/textures";
 import { addBox, addCylinder } from "./builders";
 import { SECRET_CRATE } from "../secrets/secretDefs";
+import { FloorLighting } from "./FloorLighting";
 import { createSky } from "./Sky";
 import { LavaShaft } from "./LavaShaft";
 
@@ -63,7 +64,7 @@ const THEMES: Record<number, Theme> = {
       for (const [x, z] of [[-5, -4], [5, -4], [-5, 1.5], [5, 1.5]]) b.box("metal", "table", [3, 0.9, 1.1], [x, 0.45, z]);
       for (const z of [-6, -4.8, -3.6, -2.4]) b.box("metal", "locker", [0.6, 2, 1], [-9.5, 1, z]);
       b.cyl("metal", "tank", 1.2, 2.4, [8.6, 1.2, 5.5]);
-      // Ящик с секретом: знак радиации на его южной грани (см. secrets/secretDefs.ts).
+      // Ящик с секретом: пентаграмма на его южной грани (см. secrets/secretDefs.ts).
       b.box("crate", "secret_crate", [SECRET_CRATE.size, SECRET_CRATE.size, SECRET_CRATE.size], SECRET_CRATE.pos);
     },
   },
@@ -132,6 +133,7 @@ export function buildWorld(scene: Scene) {
   const { halfZ: hz, wallThickness: T } = CONFIG.level;
   const { floorHeight, cabinSize } = CONFIG.elevator;
   const landing = new Map<number, Door>();
+  const hallLamps: PointLight[] = []; // лампы этажа 0 (для сцены появления босса)
 
   for (const f of [0, 1, 2, 3, 4]) {
     const { door, meshes } = buildRoom(scene, f);
@@ -141,12 +143,14 @@ export function buildWorld(scene: Scene) {
       const lamp = new PointLight(`lamp_${f}_${i}`, new Vector3(l.pos[0], l.pos[1] + f * floorHeight, l.pos[2]), scene);
       lamp.diffuse = l.color; lamp.intensity = l.i; lamp.range = l.range;
       lamp.includedOnlyMeshes = meshes;
+      if (f === 0) hallLamps.push(lamp);
     });
   }
 
   const hemi = new HemisphericLight("ambient", new Vector3(0, 1, 0), scene);
   hemi.intensity = 0.4;
   hemi.groundColor = new Color3(0.05, 0.05, 0.07);
+  const hallLighting = new FloorLighting(hallLamps, hemi);
 
   // Красный маячок на мачте крыши.
   const beacon = MeshBuilder.CreateBox("beacon", { size: 0.4 }, scene);
@@ -160,5 +164,5 @@ export function buildWorld(scene: Scene) {
   // Кабина стоит сразу за северной стеной: стенка (0.2) + половина кабины.
   const cabin = createCabin(scene, baseMats, new Vector3(0, 0, hz + T + 0.2 + cabinSize / 2));
   const lava = new LavaShaft(scene, cabin.root.position);
-  return { mats: baseMats, cabin, landing, lava, sky, spawn: new Vector3(0, 0, 0), spawnYaw: 0 };
+  return { mats: baseMats, cabin, landing, lava, sky, hallLighting, spawn: new Vector3(0, 0, 0), spawnYaw: 0 };
 }

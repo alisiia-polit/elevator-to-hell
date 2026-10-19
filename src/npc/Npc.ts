@@ -18,7 +18,21 @@ export interface NpcEnv {
 /** Места NPC в кабине (локальные x, z): решётка 3×3 с шагом 1,6 м — соседние места не ближе 1,6 м друг к другу. */
 const CABIN_SLOTS = [[-1.6, 1.6], [0, 1.6], [1.6, 1.6], [-1.6, 0], [0, 0], [1.6, 0], [-1.6, -1.4], [0, -1.4], [1.6, -1.4]];
 type NpcState = "CALM" | "PANIC" | "DEAD";
-export type DeathCause = "weapon" | "lava" | "impact" | "crush";
+export type DeathCause = "weapon" | "lava" | "impact" | "crush" | "blast";
+
+/** Цель NPC-смертника (финальный босс). */
+export interface BlastTarget {
+  alive: boolean;
+  /** Радиус тела: смертник взрывается, подбежав на это расстояние (плюс свой радиус). */
+  readonly blastRadius: number;
+  getWorldPosition(): Vector3;
+}
+
+interface Rage {
+  target: BlastTarget;
+  charging: boolean;
+  onBlast: (position: Vector3, npc: Npc) => void;
+}
 const CHAR = new Color3(0.05, 0.04, 0.04);
 
 /** Пассажир. Автомат состояний: CALM → PANIC → DEAD. */
@@ -50,6 +64,12 @@ export class Npc {
   private path: Point[] = [];
   private pathT = 0;
   private fleeSeed = Math.random() * Math.PI * 2;
+  private rage: Rage | null = null;
+  /** NPC хотя бы раз озверел (остаётся true и после подрыва) — для итогового отчёта. */
+  wasEnraged = false;
+  private ragePath: Point[] = [];
+  private ragePathT = 0;
+  private rageT = 0;
   private arms: TransformNode[] = [];
   private moving = false;
   private armT = Math.random() * 10;
@@ -117,6 +137,43 @@ export class Npc {
     }
   }
 
+  /**
+   * Перемещает NPC в мировую точку (x, z) этажа floor: вне кабины. Так игрока и NPC «выкидывает» из лифта.
+   */
+  ejectTo(x: number, z: number, floor: number) {
+    if (!this.alive) return;
+    if (this.root.parent) this.root.setParent(null);
+    this.inCabin = false;
+    this.root.position.set(x, floor * CONFIG.elevator.floorHeight, z);
+    this.cabinSlot = -1; this.cabinOff = { x: 0, z: 0 };
+    this.settled = false; this.fleeGoal = null; this.path = [];
+  }
+
+  /** Заставляет метаться: сбрасывает «место» — на следующем кадре выбирается новая цель бегства. */
+  restless() {
+    if (!this.alive || this.inCabin || this.rage) return;
+    this.settled = false; this.fleeGoal = null; this.path = [];
+  }
+
+  /**
+   * NPC звереет: перестаёт бояться, смотрит на цель с красным свечением и ждёт приказа charge().
+   * onBlast вызывается в момент подрыва (урон цели наносит вызывающий); сам NPC при этом погибает.
+   */
+  enrage(target: BlastTarget, onBlast: (position: Vector3, npc: Npc) => void) {
+    if (!this.alive || this.inCabin) return;
+    this.locked = true;
+    this.state = "PANIC";
+    this.wasEnraged = true;
+    this.rage = { target, charging: false, onBlast };
+    this.fleeGoal = null; this.path = []; this.settled = false;
+  }
+
+  charge() {
+    if (this.rage) this.rage.charging = true;
+  }
+
+  get isEnraged() { return this.rage !== null; }
+
   /** Паника от событий (лава, обрыв тросов, монстры): ничем не снимается. */
   scare() { if (this.alive) { this.locked = true; this.state = "PANIC"; } }
 
@@ -136,6 +193,8 @@ export class Npc {
     this.alive = false; this.state = "DEAD";
     this.deathCause = cause; this.deathT = 0;
     this.parts.forEach((p) => (p.checkCollisions = false));
+    if (cause === "blast") this.parts.forEach((p) => p.setEnabled(false)); // смертник подорвался — тела не остаётся
+    this.rage = null;
     this.root.scaling.y = 1; // мог умереть в приседе
     this.root.position.y += 0.16; // лежит на полу, а не в нём
     this.setFlash(false);
@@ -194,7 +253,8 @@ export class Npc {
         ? this.root.parent
         : null; 
     const px = this.root.position.x, pz = this.root.position.z;
-    if (this.state === "PANIC") this.runAround(dt);
+    if (this.rage) this.runRage(dt);
+    else if (this.state === "PANIC") this.runAround(dt);
     else { this.idle(dt); this.settled = false; this.fleeGoal = null; this.path = []; }
     this.separate();
     this.constrain();
@@ -256,6 +316,35 @@ export class Npc {
     this.lookT -= dt;
     if (this.lookT <= 0) { this.lookT = rf(1.5, 3.5); this.lookYaw = this.root.rotation.y + rf(-1.8, 1.8); }
     this.faceTo(this.lookYaw, dt, 2.5);
+  }
+
+  /** Ярость: ждёт очереди (трясётся, смотрит на цель) или бежит на цель и подрывается рядом с ней. */
+  private runRage(dt: number) {
+    const r = this.rage!;
+    this.rageT += dt;
+    this.state = "PANIC";
+    this.setFlash(Math.sin(this.rageT * 18) > -0.3); // красное мерцание
+    if (!r.target.alive) { this.rage = null; this.locked = false; this.setFlash(false); return; }
+
+    const now = this.world(), tp = r.target.getWorldPosition();
+    const dx = tp.x - now.x, dz = tp.z - now.z, d = Math.hypot(dx, dz);
+    if (!r.charging) { this.faceTo(Math.atan2(dx, dz), dt, 8); return; }
+
+    if (d <= r.target.blastRadius + 0.5) {
+      const pos = this.getWorldPosition().add(new Vector3(0, 0.9, 0));
+      this.kill("blast");
+      r.onBlast(pos, this);
+      return;
+    }
+    let wx = tp.x, wz = tp.z;
+    const nav = this.env.nav?.(Math.round(this.root.position.y / CONFIG.elevator.floorHeight)) ?? null;
+    if (nav && !nav.lineFree(now.x, now.z, tp.x, tp.z)) {
+      this.ragePathT -= dt;
+      if (this.ragePathT <= 0) { this.ragePathT = 0.4; this.ragePath = nav.findPath(now.x, now.z, tp.x, tp.z) ?? []; }
+      while (this.ragePath.length && Math.hypot(this.ragePath[0].x - now.x, this.ragePath[0].z - now.z) < 0.5) this.ragePath.shift();
+      if (this.ragePath.length) { wx = this.ragePath[0].x; wz = this.ragePath[0].z; }
+    }
+    this.step(wx, wz, CONFIG.boss.npcChargeSpeed, dt);
   }
 
   private runAround(dt: number) {

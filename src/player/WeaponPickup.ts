@@ -90,4 +90,4 @@ export class WeaponPickup {
     this.consumed = true;
     this.root.setEnabled(false);
   }
-}
+}

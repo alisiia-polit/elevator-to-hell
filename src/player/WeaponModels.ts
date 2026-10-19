@@ -253,4 +253,4 @@ export function buildWeaponVisual(
       return { root, muzzleZ: 1.38 };
     }
   }
-}
+}

@@ -13,7 +13,8 @@ import {
   NpcEnv,
   spawnNpcs,
 } from "./npc/Npc";
-import { FinalBossPlaceholder } from "./monsters/FinalBoss";
+import { BossEncounter } from "./monsters/BossEncounter";
+import { computeScore } from "./score";
 import { MonsterManager } from "./monsters/MonsterManager";
 import { Player } from "./player/Player";
 import { Weapon } from "./player/Weapon";
@@ -87,8 +88,8 @@ const monsters = new MonsterManager(
 
 const secrets = new Secrets(scene, world.sky);
 
-// Заглушка финального босса: появляется в холле после активации пятого секрета.
-let finalBoss: FinalBossPlaceholder | null = null;
+// Финальный босс: сцена появления и бой запускаются после активации пятого секрета.
+let encounter: BossEncounter | null = null;
 
 let ending = false;
 
@@ -107,8 +108,9 @@ const formatTime = (seconds: number) => {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 };
 
-const gameStats = (): ResultStats => {
+const gameStats = (won: boolean): ResultStats => {
   const { killed, total } = monsters.totalStats();
+  const npcEnraged = npcs.filter((n) => n.wasEnraged).length;
 
   return {
     time: formatTime(playTime),
@@ -116,6 +118,23 @@ const gameStats = (): ResultStats => {
     monstersTotal: total,
     secretsFound: secrets.activatedCount,
     secretsTotal: secrets.total,
+    health: player.health,
+    maxHealth: player.maxHealth,
+    npcEnraged,
+    npcTotal: npcs.length,
+    score: computeScore({
+      playSeconds: playTime,
+      won,
+      bossKilled: encounter?.bossKilled ?? false,
+      monstersKilled: killed,
+      monstersTotal: total,
+      npcEnraged,
+      npcTotal: npcs.length,
+      secretsRegular: secrets.regularActivatedCount,
+      finalSecretFound: secrets.finaleActivated,
+      health: player.health,
+      maxHealth: player.maxHealth,
+    }),
   };
 };
 
@@ -150,7 +169,7 @@ const showGameOver = () => {
   hud.showResult(
     "GAME OVER",
     player.deathReason,
-    gameStats(),
+    gameStats(false),
     restartGame,
   );
 };
@@ -180,7 +199,7 @@ const finishVictory = (
     hud.showResult(
       "YOU WIN",
       message,
-      gameStats(),
+      gameStats(true),
       restartGame,
     );
   }, delay);
@@ -212,15 +231,19 @@ secrets.onActivated = (info) => {
   hud.setSecretsRemaining(info.remaining);
 
   if (info.isFinale) {
-    finalBoss = new FinalBossPlaceholder(
+    encounter = new BossEncounter({
       scene,
-      new Vector3(0, 2.2, -1),
-    );
-
-    hud.toast(
-      "ВСІ СЕКРЕТИ АКТИВОВАНО! ФІНАЛЬНИЙ БОС ПРОКИНУВСЯ (заглушка)",
-      5000,
-    );
+      player,
+      npcs,
+      elevator,
+      doors: [world.landing.get(0)!, world.cabin.door],
+      lighting: world.hallLighting,
+      nav: monsters.navFor(0),
+      say: (t, ms) => hud.toast(t, ms),
+      onLavaThrown: (origin) => hud.warnGrenade(origin),
+      onDefeated: () => finishVictory("ФІНАЛЬНОГО БОСА ПОВЕРЖЕНО — ПЕРЕМОГА"),
+    });
+    encounter.begin();
     return;
   }
 
@@ -343,7 +366,8 @@ scene.onBeforeRenderObservable.add(
       weapon.update(dt);
     }
 
-    finalBoss?.update(dt);
+    encounter?.update(dt, ending);
+    if (!ending) hud.setBossHealth(encounter?.bossBar ?? null);
     secrets.update(dt);
 
     if (!ending) {
@@ -404,4 +428,4 @@ engine.runRenderLoop(() =>
 window.addEventListener(
   "resize",
   () => engine.resize(),
-);
+);

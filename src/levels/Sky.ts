@@ -1,4 +1,5 @@
-import { Color3, MeshBuilder, Quaternion, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { Color3, DynamicTexture, MeshBuilder, Quaternion, Scene, StandardMaterial, Texture, Vector3 } from "@babylonjs/core";
+import { pentagramPath } from "../utils/pentagram";
 import { canvasTexture, noise, rng } from "../utils/textures";
 
 /**
@@ -9,30 +10,29 @@ export const MOON_POSITION = new Vector3(-86.5, 189.7, -158.5);
 
 const MOON_RADIUS = 14;
 
-/** Перевёрнутая пентаграмма в круге (одна вершина смотрит вниз) — знак на луне. */
+/**
+ * Перевёрнутая пентаграмма в круге (одна вершина смотрит вниз) — знак на луне.
+ * Видимая луна — диск шириной всего ≈ 30 пикселей кадра, поэтому знак крупный (круг занимает ≈ 84% диска)
+ * и нарисован толстыми линиями: тонкие линии при таком масштабе теряются, и звезда видна обрывками.
+ */
 function drawInvertedPentagram(c: CanvasRenderingContext2D, size: number) {
-  const cx = size / 2, cy = size / 2, R = size * 0.44;
+  const cx = size / 2, cy = size / 2, R = size * 0.42;
   c.clearRect(0, 0, size, size);
-  c.strokeStyle = "#5a0b0b";
+  c.strokeStyle = "#4a0707";
   c.fillStyle = "rgba(60,8,8,0.35)";
-  c.lineWidth = size * 0.045;
   c.lineJoin = "miter";
+  c.lineCap = "round";
 
+  c.lineWidth = size * 0.05;
   c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill(); c.stroke();
 
-  // Звезда через одну вершину; первая вершина внизу.
-  c.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const a = Math.PI / 2 + (i * 4 * Math.PI) / 5;
-    const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
-    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-  }
-  c.closePath();
-  c.lineWidth = size * 0.035;
+  // Вершины звезды лежат на круге.
+  pentagramPath(c, cx, cy, R);
+  c.lineWidth = size * 0.055;
   c.stroke();
 }
 
-/** Разлом на луне: светящаяся трещина с ответвлениями, без знака радиации. */
+/** Разлом на луне: светящаяся трещина с ответвлениями, без пентаграммы. */
 function drawMoonRift(c: CanvasRenderingContext2D, size: number) {
   const r = rng(11);
   c.clearRect(0, 0, size, size);
@@ -104,7 +104,9 @@ export function createSky(scene: Scene) {
   const halo = MeshBuilder.CreateSphere("moon_halo", { diameter: 44, segments: 12 }, scene);
   const hm = unlit("halo_mat", new Color3(0.35, 0.42, 0.6));
   hm.alpha = 0.16;
+  hm.disableDepthWrite = true;
   halo.material = hm;
+  halo.alphaIndex = 1; // ореол рисуется раньше знака и разлома
   for (const m of [moon, halo]) {
     m.position.copyFrom(MOON_POSITION);
     m.infiniteDistance = true; m.isPickable = false; m.applyFog = false;
@@ -112,23 +114,29 @@ export function createSky(scene: Scene) {
 
   // Перевёрнутая пентаграмма и разлом — плоские диски перед лицом луны, повёрнутые к игроку.
   // Направление на луну постоянно, поэтому ориентация задаётся один раз.
+  // Текстуры — с мипмапами и билинейной фильтрацией: при пиксельной фильтрации (NEAREST) тонкие линии
+  // на таком маленьком объекте пропадали, и пентаграмма была видна лишь частично.
   const moonDir = MOON_POSITION.normalizeToNew();
-  const overlay = (name: string, diameter: number, draw: (c: CanvasRenderingContext2D) => void) => {
-    const t = canvasTexture(scene, 128, 128);
-    draw(t.ctx);
-    t.tex.hasAlpha = true;
-    t.tex.update();
-    const mat = unlit(`${name}_mat`, null, t.tex);
-    mat.opacityTexture = t.tex;
+  const overlay = (name: string, diameter: number, alphaIndex: number, draw: (c: CanvasRenderingContext2D, size: number) => void) => {
+    const TEX = 256;
+    const tex = new DynamicTexture(`${name}_tex`, { width: TEX, height: TEX }, scene, true, Texture.TRILINEAR_SAMPLINGMODE);
+    draw(tex.getContext() as unknown as CanvasRenderingContext2D, TEX);
+    tex.hasAlpha = true;
+    tex.update();
+    const mat = unlit(`${name}_mat`, null, tex);
+    mat.opacityTexture = tex;
+    mat.disableDepthWrite = true; // прозрачные слои не перекрывают друг друга в буфере глубины
     const mesh = MeshBuilder.CreatePlane(name, { size: diameter }, scene);
     mesh.material = mat;
+    mesh.alphaIndex = alphaIndex;
     mesh.position.copyFrom(MOON_POSITION.subtract(moonDir.scale(MOON_RADIUS + 0.3)));
     mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(moonDir, Vector3.Up());
     mesh.infiniteDistance = true; mesh.isPickable = false; mesh.applyFog = false;
     return mesh;
   };
-  const sign = overlay("moon_sign", 15, (c) => drawInvertedPentagram(c, 128));
-  const rift = overlay("moon_rift", MOON_RADIUS * 2, (c) => drawMoonRift(c, 128));
+  // Знак и разлом — на всю ширину диска луны (размер самой луны не меняется).
+  const sign = overlay("moon_sign", MOON_RADIUS * 2, 2, (c, size) => drawInvertedPentagram(c, size));
+  const rift = overlay("moon_rift", MOON_RADIUS * 2, 3, (c, size) => drawMoonRift(c, size));
   rift.setEnabled(false);
 
   return {

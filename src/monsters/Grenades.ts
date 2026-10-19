@@ -50,6 +50,25 @@ export function planThrow(boxes: Aabb[], from: Vector3, to: Vector3): ThrowPlan 
   return null;
 }
 
+/**
+ * Что именно летит и как взрывается. «grenade» — граната монстров (параметры из CONFIG.grenade);
+ * «lava» — кусок лавы финального босса: крупнее, раскалённый, взрыв сильнее и оранжевее.
+ */
+export interface LobProfile {
+  style: "grenade" | "lava";
+  splashDamage: number;
+  explosionRadius: number;
+  /** Подпись на экране поражения, если снаряд добил игрока. */
+  deathReason: string;
+}
+
+const GRENADE_PROFILE: LobProfile = {
+  style: "grenade",
+  splashDamage: CONFIG.grenade.splashDamage,
+  explosionRadius: CONFIG.grenade.explosionRadius,
+  deathReason: "ВАС ПІДІРВАЛА ГРАНАТА МОНСТРІВ",
+};
+
 interface Grenade {
   root: TransformNode;
   trail: LinesMesh;
@@ -59,7 +78,7 @@ interface Grenade {
   boxes: Aabb[];
 }
 
-interface ExplosionFx { mesh: Mesh; material: StandardMaterial; life: number }
+interface ExplosionFx { mesh: Mesh; material: StandardMaterial; life: number; total: number; size: number }
 
 /**
  * Гранаты монстров. Летят по параболе, взрываются при ударе о стену/пол или рядом с целью.
@@ -71,7 +90,13 @@ export class GrenadeSystem {
   /** Вызывается при вылете гранаты: сюда подключается индикация на экране. */
   onLaunch: (origin: Vector3) => void = () => {};
 
-  constructor(private readonly scene: Scene, private readonly player: Player, private readonly npcs: Npc[]) {}
+  /** profile — вид снаряда; npcs — кого, кроме игрока, ранит взрыв (у босса пусто: он атакует только игрока). */
+  constructor(
+    private readonly scene: Scene,
+    private readonly player: Player,
+    private readonly npcs: Npc[],
+    private readonly profile: LobProfile = GRENADE_PROFILE,
+  ) {}
 
   spawn(from: Vector3, velocity: Vector3) {
     const root = new TransformNode("grenade", this.scene);
@@ -81,13 +106,27 @@ export class GrenadeSystem {
       m.diffuseColor = c; m.emissiveColor = c.scale(glow); m.specularColor = Color3.Black();
       return m;
     };
-    const body = MeshBuilder.CreateSphere("grenade_body", { diameter: 0.3, segments: 6 }, this.scene);
-    body.parent = root; body.material = mat(new Color3(0.24, 0.3, 0.12), 0.25); body.isPickable = false;
-    const lamp = MeshBuilder.CreateSphere("grenade_lamp", { diameter: 0.12, segments: 4 }, this.scene);
-    lamp.parent = root; lamp.position.y = 0.17; lamp.material = mat(new Color3(1, 0.1, 0.05), 1); lamp.isPickable = false;
+    const lava = this.profile.style === "lava";
+    if (lava) {
+      // Кусок лавы: тёмная бордовая корка и раскалённые трещины-грани.
+      const crust = MeshBuilder.CreateBox("lava_chunk", { width: 0.52, height: 0.42, depth: 0.48 }, this.scene);
+      crust.parent = root; crust.material = mat(new Color3(0.2, 0.04, 0.03), 0.5); crust.isPickable = false;
+      crust.rotation.set(0.5, 0.3, 0.2);
+      const core = MeshBuilder.CreateBox("lava_core", { width: 0.4, height: 0.3, depth: 0.62 }, this.scene);
+      core.parent = root; core.material = mat(new Color3(1, 0.42, 0.06), 0.9); core.isPickable = false;
+      core.rotation.set(0.2, 0.9, 0.6);
+      const shard = MeshBuilder.CreateBox("lava_shard", { size: 0.26 }, this.scene);
+      shard.parent = root; shard.position.set(0.24, 0.12, -0.1); shard.material = mat(new Color3(1, 0.75, 0.15), 1); shard.isPickable = false;
+      shard.rotation.set(0.7, 0.2, 0.4);
+    } else {
+      const body = MeshBuilder.CreateSphere("grenade_body", { diameter: 0.3, segments: 6 }, this.scene);
+      body.parent = root; body.material = mat(new Color3(0.24, 0.3, 0.12), 0.25); body.isPickable = false;
+      const lamp = MeshBuilder.CreateSphere("grenade_lamp", { diameter: 0.12, segments: 4 }, this.scene);
+      lamp.parent = root; lamp.position.y = 0.17; lamp.material = mat(new Color3(1, 0.1, 0.05), 1); lamp.isPickable = false;
+    }
 
     const trail = MeshBuilder.CreateLines("grenade_trail", { points: [from, from], updatable: true }, this.scene);
-    trail.color = new Color3(1, 0.55, 0.15);
+    trail.color = lava ? new Color3(1, 0.3, 0.05) : new Color3(1, 0.55, 0.15);
     trail.isPickable = false;
 
     this.onLaunch(from.clone());
@@ -121,6 +160,7 @@ export class GrenadeSystem {
 
       g.root.position.copyFrom(g.position);
       g.root.rotation.x += dt * 9;
+      if (this.profile.style === "lava") g.root.rotation.y += dt * 5;
       const tail = g.position.subtract(g.velocity.normalizeToNew().scale(0.9));
       MeshBuilder.CreateLines(g.trail.name, { points: [g.position, tail], instance: g.trail });
     }
@@ -136,19 +176,19 @@ export class GrenadeSystem {
   }
 
   private explode(pos: Vector3, boxes: Aabb[]) {
-    const G = CONFIG.grenade;
+    const G = CONFIG.grenade, P = this.profile;
     const dmgAt = (center: Vector3) => {
       const d = Vector3.Distance(center, pos);
-      if (d > G.explosionRadius) return 0;
-      let f = 1 - d / G.explosionRadius;
+      if (d > P.explosionRadius) return 0;
+      let f = 1 - d / P.explosionRadius;
       if (lineBlocked(boxes, pos.add(new Vector3(0, 0.2, 0)), center)) f *= G.shieldFactor;
-      return Math.max(1, Math.round(G.splashDamage * f));
+      return Math.max(1, Math.round(P.splashDamage * f));
     };
 
     if (this.player.alive) {
       const dmg = dmgAt(this.player.getWorldPosition());
       if (dmg > 0) {
-        if (this.player.health <= dmg) this.player.deathReason = "ВАС ПІДІРВАЛА ГРАНАТА МОНСТРІВ";
+        if (this.player.health <= dmg) this.player.deathReason = P.deathReason;
         this.player.damage(dmg, pos);
       }
     }
@@ -162,24 +202,26 @@ export class GrenadeSystem {
   }
 
   private createExplosionFx(position: Vector3) {
+    const lava = this.profile.style === "lava";
     const mesh = MeshBuilder.CreateSphere("grenade_explosion", { diameter: 1, segments: 8 }, this.scene);
     const material = new StandardMaterial("grenade_explosion_mat", this.scene);
-    material.diffuseColor = new Color3(1, 0.16, 0.02);
-    material.emissiveColor = new Color3(1, 0.08, 0.01);
+    material.diffuseColor = lava ? new Color3(0.9, 0.2, 0.02) : new Color3(1, 0.16, 0.02);
+    material.emissiveColor = lava ? new Color3(1, 0.32, 0.03) : new Color3(1, 0.08, 0.01);
     material.specularColor = Color3.Black();
     mesh.material = material;
     mesh.isPickable = false;
     mesh.position.copyFrom(position);
     mesh.scaling.setAll(0.2);
-    this.explosions.push({ mesh, material, life: 0.28 });
+    // Видимый размер вспышки: у гранаты 3.4 (как раньше), у лавы — по радиусу поражения.
+    this.explosions.push({ mesh, material, life: lava ? 0.4 : 0.28, total: lava ? 0.4 : 0.28, size: lava ? this.profile.explosionRadius * 1.5 : 3.4 });
   }
 
   private updateExplosions(dt: number) {
     for (let i = this.explosions.length - 1; i >= 0; i--) {
       const e = this.explosions[i];
       e.life -= dt;
-      const progress = 1 - Math.max(0, e.life / 0.28);
-      e.mesh.scaling.setAll(0.2 + progress * 3.4);
+      const progress = 1 - Math.max(0, e.life / e.total);
+      e.mesh.scaling.setAll(0.2 + progress * e.size);
       e.material.alpha = 1 - progress;
       if (e.life <= 0) {
         e.mesh.dispose();

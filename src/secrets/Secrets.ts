@@ -1,7 +1,7 @@
 import { AbstractMesh, Ray, Scene, Vector3 } from "@babylonjs/core";
 import { CONFIG } from "../config";
 import { MOON_POSITION } from "../levels/Sky";
-import { RadiationSwitch } from "./RadiationSwitch";
+import { PentagramSwitch } from "./PentagramSwitch";
 import { SECRET_DEFS } from "./secretDefs";
 
 export interface SecretActivation {
@@ -15,13 +15,13 @@ export interface SecretActivation {
 
 /**
  * Секреты игры. Активируются только оружием игрока:
- * знаки радиации — попаданием в меш (metadata.secret), луна — выстрелом в её сторону на крыше.
+ * пентаграммы — попаданием в меш (metadata.secret), луна — выстрелом в её сторону на крыше.
  * Финальный секрет на этаже 0 появляется после активации всех остальных.
  */
 export class Secrets {
   readonly total = SECRET_DEFS.length;
 
-  private readonly switches = new Map<string, RadiationSwitch>();
+  private readonly switches = new Map<string, PentagramSwitch>();
   private readonly activated = new Set<string>();
   private readonly moonDir = MOON_POSITION.normalizeToNew();
 
@@ -35,7 +35,7 @@ export class Secrets {
       if (def.kind !== "switch") continue;
       const y0 = def.floor * CONFIG.elevator.floorHeight;
       const p = def.position!;
-      const sw = new RadiationSwitch(
+      const sw = new PentagramSwitch(
         scene,
         def.id,
         [p[0], p[1] + y0, p[2]],
@@ -50,6 +50,16 @@ export class Secrets {
 
   get activatedCount() {
     return this.activated.size;
+  }
+
+  /** Сколько обычных (не финальных) секретов найдено. */
+  get regularActivatedCount() {
+    return SECRET_DEFS.filter((d) => !d.finale && this.activated.has(d.id)).length;
+  }
+
+  /** Найден ли финальный секрет. */
+  get finaleActivated() {
+    return SECRET_DEFS.some((d) => d.finale && this.activated.has(d.id));
   }
 
   get remaining() {

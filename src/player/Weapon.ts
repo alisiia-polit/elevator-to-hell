@@ -87,7 +87,7 @@ export class Weapon {
   /** Выстрел игрока: луч прицела (для секрета «луна»). */
   onShotRay: (origin: Vector3, direction: Vector3) => void = () => {};
 
-  /** Меш, в который попал снаряд игрока (для секретов со знаком радиации). */
+  /** Меш, в который попал снаряд игрока (для секретов-пентаграмм). */
   onSecretMesh: (mesh: AbstractMesh | null | undefined) => void = () => {};
 
   constructor(
@@ -1668,4 +1668,4 @@ export class Weapon {
       this.fire();
     }
   }
-}
+}

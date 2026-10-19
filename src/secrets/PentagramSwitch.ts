@@ -1,20 +1,21 @@
 import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial, Texture } from "@babylonjs/core";
-import { drawRadiationSign, SignPalette } from "../utils/radiation";
+import { drawPentagramSign, PentagramPalette } from "../utils/pentagram";
 import { canvasTexture } from "../utils/textures";
 
-const TEX_SIZE = 64;
+const TEX_SIZE = 128;
+const HALO_SIZE = 64;
 
-// Обычный секрет: тусклый жёлто-чёрный знак, активный — яркий, с ядовито-зелёным свечением.
-const NORMAL_OFF: SignPalette = { disc: "#7a6812", blade: "#0c0902", ring: "#0c0902" };
-const NORMAL_ON: SignPalette = { disc: "#ffd61f", blade: "#050400", ring: "#050400", glow: "rgba(140,255,60,0.4)" };
+// Обычный секрет: тёмная пластина с тусклой янтарной пентаграммой; активный — ярко-зелёное свечение.
+const NORMAL_OFF: PentagramPalette = { disc: "#0a020481", line: "#99001481", ring: "#6600117e", glow: "#490101" };
+const NORMAL_ON: PentagramPalette = { disc: "#141418", line: "#b38600", ring: "#b38600", glow: "#cc9900", lineWidth: 0.055 };
 
-// Финальный секрет: чёрный диск, кроваво-красный знак и острые лучи.
-const OMINOUS_OFF: SignPalette = { disc: "#0b0304", blade: "#b01414", ring: "#8a0f0f", glow: "rgba(120,0,0,0.3)", spikes: "#5a0b0b" };
-const OMINOUS_ON: SignPalette = { disc: "#1a0404", blade: "#ff5a2a", ring: "#ff3a1a", glow: "rgba(255,40,10,0.5)", spikes: "#ff2a10" };
+// Финальный секрет: чёрный диск, кроваво-красная пентаграмма и острые лучи.
+const OMINOUS_OFF: PentagramPalette = { disc: "#0a0204", line: "#990015", ring: "#660011", glow: "#440000", spikes: "#5a0b0b" };
+const OMINOUS_ON: PentagramPalette = { disc: "#1a0404", line: "#ff2a10", ring: "#ff0033", glow: "#ff0000", spikes: "#ff2a10", lineWidth: 0.055 };
 
-function signTexture(scene: Scene, palette: SignPalette): Texture {
+function signTexture(scene: Scene, palette: PentagramPalette): Texture {
   const { tex, ctx } = canvasTexture(scene, TEX_SIZE, TEX_SIZE);
-  drawRadiationSign(ctx, TEX_SIZE, palette);
+  drawPentagramSign(ctx, TEX_SIZE, palette);
   tex.hasAlpha = true;
   tex.update();
   return tex;
@@ -22,14 +23,15 @@ function signTexture(scene: Scene, palette: SignPalette): Texture {
 
 /** Тёмно-красное пятно с мягким краем: подкладка под зловещий секрет. */
 function haloTexture(scene: Scene): Texture {
-  const { tex, ctx: c } = canvasTexture(scene, TEX_SIZE, TEX_SIZE);
-  const g = c.createRadialGradient(32, 32, 4, 32, 32, 32);
+  const { tex, ctx: c } = canvasTexture(scene, HALO_SIZE, HALO_SIZE);
+  const h = HALO_SIZE / 2;
+  const g = c.createRadialGradient(h, h, 4, h, h, h);
   g.addColorStop(0, "rgba(150,0,0,0.9)");
   g.addColorStop(0.55, "rgba(70,0,0,0.55)");
   g.addColorStop(1, "rgba(0,0,0,0)");
-  c.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
+  c.clearRect(0, 0, HALO_SIZE, HALO_SIZE);
   c.fillStyle = g;
-  c.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+  c.fillRect(0, 0, HALO_SIZE, HALO_SIZE);
   tex.hasAlpha = true;
   tex.update();
   return tex;
@@ -47,12 +49,13 @@ function unlitMaterial(scene: Scene, name: string, tex: Texture, zOffset: number
 }
 
 /**
- * Плоский переключатель со знаком радиационной угрозы на стене или предмете.
+ * Плоский переключатель с перевёрнутой пентаграммой на стене или предмете.
  * Активируется попаданием из оружия игрока: меш помечен metadata.secret = id.
- * ominous — зловещий вид (финальный секрет): крупный чёрно-красный знак с лучами
+ * ominous — зловещий вид (финальный секрет): крупная чёрно-красная пентаграмма с лучами
  * и пульсирующим тёмно-красным пятном вокруг.
+ * Пентаграмма симметрична относительно вертикали, поэтому обратная сторона плоскости (зеркальная) выглядит так же.
  */
-export class RadiationSwitch {
+export class PentagramSwitch {
   readonly mesh: Mesh;
   private active = false;
   private time = 0;

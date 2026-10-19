@@ -203,6 +203,9 @@ export class Player {
 
   private updateCameraShake(dt: number) {
     if (this.camera.parent !== this.body || this.cameraShakeRemaining <= 0) {
+      // Тряска закончилась: сбрасываем накопленную амплитуду, чтобы слабая тряска не наследовала сильную.
+      this.cameraShakeAmplitude = 0;
+      this.cameraShakeFrequency = 0;
       if (this.camera.parent === this.body) {
         this.camera.position.set(0, CONFIG.player.eyeHeight - CONFIG.player.ellipsoid.y, 0);
         this.camera.rotation.z = 0;

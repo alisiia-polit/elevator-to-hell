@@ -8,7 +8,7 @@ import { Door } from "./Door";
 /** Конечный автомат лифта, включая лаву и аварийное падение (этап 5). */
 type ElevatorState =
   | "IDLE" | "CLOSING" | "OVERLOADED" | "MOVING" | "OPENING"
-  | "LAVA" | "EMERGENCY_WAIT" | "EMERGENCY_BREAK" | "EMERGENCY_FALL" | "EMERGENCY_CRASHED";
+  | "LAVA" | "SEALED" | "EMERGENCY_WAIT" | "EMERGENCY_BREAK" | "EMERGENCY_FALL" | "EMERGENCY_CRASHED";
 
 export class Elevator {
   state: ElevatorState = "IDLE";
@@ -37,6 +37,8 @@ export class Elevator {
   private wasHazard = false;
   private lavaPanic = false;
   private lavaTouched = false;
+  /** Запечатанный лифт (сцена босса): двери открыты только после openSealed(). */
+  private sealedOpen = false;
 
   constructor(
     private readonly scene: Scene,
@@ -59,9 +61,49 @@ export class Elevator {
 
   /** Двери открыты и кабина не находится в опасном режиме. */
   exitOpen(): boolean {
-    if (this.state === "LAVA" || this.state.startsWith("EMERGENCY")) return false;
+    if (this.state === "LAVA" || this.state === "SEALED" || this.state.startsWith("EMERGENCY")) return false;
     const l = this.landing.get(this.floor);
     return this.door.open > 0.7 && !!l && l.open > 0.7;
+  }
+
+  /** Можно ли сейчас запечатать лифт для сцены босса: кабина стоит на нулевом этаже, не едет и не падает. */
+  canSeal(): boolean {
+    return this.floor === 0 && (this.state === "IDLE" || this.state === "OPENING" || this.state === "CLOSING" || this.state === "OVERLOADED");
+  }
+
+  /**
+   * Сцена босса: игрока и NPC, находящихся в кабине или в дверном проёме, выбрасывает в центр комнаты,
+   * после чего двери закрываются, а лифт блокируется (кнопки не работают).
+   */
+  seal() {
+    const hz = CONFIG.level.halfZ, dw = CONFIG.elevator.doorWidth;
+    const y0 = this.floor * CONFIG.elevator.floorHeight;
+    const inDoorway = (x: number, z: number) => z > hz - 1.2 && Math.abs(x) < dw / 2 + 0.6;
+
+    const p = this.player.body.position;
+    const ejectPlayer = this.player.alive && (this.playerInside() || inDoorway(p.x, p.z));
+    if (ejectPlayer) p.set(0, y0 + CONFIG.player.ellipsoid.y + 0.01, 0);
+
+    const riders = this.npcs.filter((n) => n.alive && (n.inCabin || inDoorway(n.world().x, n.world().z)));
+    riders.forEach((n, i) => {
+      const a = i * 2.4 + 0.8; // вокруг центра, в стороне от игрока
+      n.ejectTo(Math.cos(a) * 2.3, Math.sin(a) * 2.3, this.floor);
+    });
+
+    this.selected = null;
+    this.panel.setSelected(null);
+    this.state = "SEALED";
+    this.sealedOpen = false;
+    this.door.setOpen(false);
+    this.landing.get(this.floor)?.setOpen(false);
+  }
+
+  /** Открыть двери запечатанного лифта (выход босса). Лифт остаётся заблокированным. */
+  openSealed() {
+    if (this.state !== "SEALED") return;
+    this.sealedOpen = true;
+    this.door.setOpen(true);
+    this.landing.get(this.floor)?.setOpen(true);
   }
 
   playerInside(): boolean {
@@ -95,13 +137,14 @@ export class Elevator {
   }
 
   pickKey(): ButtonKey | null {
-    if (!this.playerInside() || this.state.startsWith("EMERGENCY") || this.state === "LAVA") return null;
+    if (!this.playerInside() || this.state.startsWith("EMERGENCY") || this.state === "LAVA" || this.state === "SEALED") return null;
     const ray = this.player.getEyeRay(CONFIG.elevator.reach);
     const hit = this.scene.pickWithRay(ray, (m) => m.metadata?.button !== undefined);
     return hit?.hit && hit.pickedMesh ? (hit.pickedMesh.metadata.button as ButtonKey) : null;
   }
 
   press(key: ButtonKey) {
+    if (this.state === "SEALED") { this.say("Ліфт заблоковано"); return; }
     if (key === "stop") {
       this.triggerEmergencyStop();
       return;
@@ -130,6 +173,11 @@ export class Elevator {
   update(dt: number) {
     const E = CONFIG.elevator;
     this.time += dt;
+    // В запечатанном лифте положение дверей задаётся только сценой босса — каждый кадр, чтобы ничто не могло их переоткрыть.
+    if (this.state === "SEALED") {
+      this.door.setOpen(this.sealedOpen);
+      this.landing.get(this.floor)?.setOpen(this.sealedOpen);
+    }
     this.door.update(dt);
     this.landing.forEach((d) => d.update(dt));
     this.weight = this.computeWeight();

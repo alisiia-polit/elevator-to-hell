@@ -254,4 +254,4 @@ export const CONFIG = {
     doorOpenBeforeFall: 0.35,
     doorOpenDuringFall: 0.55,
   },
-};
+};

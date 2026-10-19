@@ -1,7 +1,7 @@
 import { Color3, Mesh, MeshBuilder, Scene, StandardMaterial, TransformNode, Vector3 } from "@babylonjs/core";
 import { CONFIG } from "../config";
 
-type MonsterKind = "walker" | "flying";
+type MonsterKind = "walker" | "flying" | "boss";
 
 export interface DamageTarget {
   alive: boolean;
